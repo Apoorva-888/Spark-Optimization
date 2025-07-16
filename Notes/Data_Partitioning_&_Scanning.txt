@@ -1,0 +1,139 @@
+PySpark Optimization Notes
+Section 1 : Data Partitioning & Scanning
+
+1. What is Partitioning in Spark?
+---------------------------------------------------------------------------------------------------------
+- Partitioning refers to dividing data into smaller chunks (partitions) so Spark can process them in parallel.
+- It improves read performance, reduces memory pressure, and supports distributed processing.
+- Partitioning is a technique to divide large datasets into smaller, manageable parts across Spark executors.
+- It allows Spark to process tasks in parallel, improving performance and reducing job execution time.
+- Partitions are the basic units of parallelism in Spark; the number of partitions affects the level of concurrency.
+- Efficient partitioning reduces memory overhead, minimizes disk IO, and speeds up operations.
+
+
+2. Types of Partitioning
+---------------------------------------------------------------------------------------------------------
+- File Partitioning (on disk) occurs when data is stored in structured folder hierarchies (e.g., /year=2024/month=06/).
+- DataFrame Partitioning (in memory) refers to how Spark internally divides datasets using logical partitions.
+- Use `.repartition(n)` to increase partitions and spread data evenly (with shuffle).
+- Use `.coalesce(n)` to reduce the number of partitions without a full shuffle, often used before writing to disk.
+
+a. File Partitioning (Storage Level)
+- Happens at data storage level (e.g., HDFS, S3).
+- Example: Files stored as /year=2024/month=06/
+- Allows Spark to read only relevant data (partition pruning).
+
+b. DataFrame Partitioning (Execution Level)
+- Logical partitions created during Spark job execution.
+- Controlled via:
+  - df.repartition(n) – increases partitions and reshuffles data.
+  - df.coalesce(n) – decreases partitions without full shuffle.
+
+3. Best Practices for Partitioning
+---------------------------------------------------------------------------------------------------------
+- Partition your data based on columns frequently used in filters (like `date`, `region`, `user_id`).
+- Avoid over-partitioning (many small files) and under-partitioning (few large files); both harm performance.
+- Use `.repartition()` before heavy transformations and `.coalesce()` before writing to limit file count.
+- Monitor skewness in partition sizes using Spark UI to avoid uneven task distribution.
+
+| Use Case               | Recommendation                         |
+|------------------------|----------------------------------------|
+| Large files            | Use `.repartition()` to parallelize    |
+| Many small files       | Use `.coalesce()` to reduce tasks      |
+| Filtering on a column  | Partition data on that column          |
+
+4. Choosing Partition Columns
+---------------------------------------------------------------------------------------------------------
+- Pick columns with high cardinality and frequent filtering (e.g., `date`, `customer_id`, `country`).
+- Avoid partitioning on columns with few distinct values — leads to skewed partitions.
+- Partition columns should ideally be deterministic and stable across jobs.
+- Use data exploration to identify good partition candidates before loading to storage.
+- Select high-cardinality columns used often in filters (e.g., date, user_id).
+- Avoid columns with:
+  - Too few distinct values (causes skew)
+  - Too many nulls
+
+5. Partition Pruning
+---------------------------------------------------------------------------------------------------------
+- Partition pruning reduces data scan by skipping irrelevant partitions during query execution.
+- Static pruning is triggered when filter values are known at compile time.
+- Dynamic partition pruning activates during joins where filter values are resolved at runtime.
+- Enables efficient query
+
+a. Static Partition Pruning
+- Happens when the filter value is known at compile time.
+- Spark reads only relevant partitions.
+Example:
+    df.filter(col("date") == "2023-06-01")
+
+b. Dynamic Partition Pruning (DPP)
+- Applied during joins where partition key comes from another table.
+- Enabled using:
+    spark.conf.set("spark.sql.optimizer.dynamicPartitionPruning.enabled", "true")
+
+6. Handling Skewed Partitions
+---------------------------------------------------------------------------------------------------------
+- Skewed partitions occur when some keys have significantly more data than others.
+- Causes performance issues due to uneven task durations and executor memory errors.
+- Repartitioning or salting can help distribute data more evenly.
+- Monitor skew using Spark UI and input size metrics.
+- Problem: Some partitions hold too much data (e.g., one date has 80% of rows).
+- Causes:
+  - Slow task completion
+  - OOM errors
+- Solution:
+  - Repartition data
+  - Use salting (adding random keys to distribute data)
+  - Partition by better column
+
+7. Column Pruning
+---------------------------------------------------------------------------------------------------------
+- Select only necessary columns instead of using df.select("*").
+- Only select the necessary columns in transformations to reduce data movement.
+- Avoid using select("*") unless all columns are required.
+- Reduces memory usage and speeds up job execution.
+- Improves performance especially when working with wide datasets.
+- Benefits:
+  - Faster scans
+  - Lower memory usage
+  - Reduced shuffle
+
+8. Predicate Pushdown
+---------------------------------------------------------------------------------------------------------
+- Filters are applied as early as possible, directly at the data source level.
+- Effective with Parquet, ORC, and Delta formats.
+- Reduces the volume of data loaded into Spark memory.
+- Improves overall query performance and I/O efficiency.
+- Spark pushes filters down to the data source to minimize data read.
+- Works best with Parquet, ORC, Delta formats.
+Example:
+    df = spark.read.parquet("s3://bucket/").filter("year = 2023")
+
+9. Repartition vs Coalesce
+---------------------------------------------------------------------------------------------------------
+| Method        | Use Case               | Shuffle? | Effect                  |
+|---------------|------------------------|----------|-------------------------|
+| repartition(n)| Increase parallelism   | Yes      | Full shuffle            |
+| coalesce(n)   | Reduce task overhead   | No       | Merges partitions safely|
+
+10. Using .explain(True)
+---------------------------------------------------------------------------------------------------------
+- Displays the physical and logical plan of Spark jobs.
+- Helps verify if partition pruning and predicate pushdown are working.
+- Shows the number of partitions being read and stages of execution.
+- Use it to optimize query structure and detect inefficiencies.
+- Run df.explain(True) to inspect:
+  - Partition pruning
+  - Predicate pushdown
+  - Scan strategy
+  - Number of partitions read
+
+Summary Tips
+---------------------------------------------------------------------------------------------------------
+- Partition data on commonly filtered columns (e.g., date, user_id).
+- Enable dynamic partition pruning.
+- Use predicate pushdown to reduce IO.
+- Avoid too many small files (use coalesce).
+- Avoid huge partitions (use repartition).
+- Always monitor with .explain() and Spark UI.
+
