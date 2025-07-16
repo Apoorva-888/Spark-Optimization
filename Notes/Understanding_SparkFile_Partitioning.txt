@@ -1,0 +1,66 @@
+📝 Spark Partitioning Explanation Based on File Size
+
+📌 Scenario:
+- File size: 156 KB
+- Spark's default partition size: 128 MB (i.e., spark.sql.files.maxPartitionBytes = 134217728)
+- Number of partitions created by Spark: 1
+
+✅ 1. Why Only One Partition?
+Spark calculates the number of partitions as:
+    numPartitions = ceil(fileSize / maxPartitionBytes)
+
+For your file:
+    fileSize = 156 * 1024 = 159744 bytes
+    maxPartitionBytes = 128 * 1024 * 1024 = 134217728 bytes
+
+    => numPartitions = ceil(159744 / 134217728) = ceil(0.0012) = 1
+
+So Spark creates only 1 partition since the file is much smaller than the threshold.
+
+✅ 2. What Controls This Behavior?
+The configuration that controls this behavior is:
+
+    spark.sql.files.maxPartitionBytes
+
+Default value: 134217728 bytes (128 MB)
+
+You can check this value in PySpark:
+    spark.conf.get("spark.sql.files.maxPartitionBytes")
+
+To override:
+    spark.conf.set("spark.sql.files.maxPartitionBytes", 1024 * 1024 * 1)  # 1 MB
+
+✅ 3. How to Check Number of Partitions
+After loading the file:
+    df.rdd.getNumPartitions()
+
+✅ 4. Why is the Default Partition Size 128 MB?
+- Spark is optimized for high throughput on distributed systems like HDFS.
+- HDFS block size is often 128 MB or 256 MB.
+- Matching partition size to block size avoids unnecessary I/O fragmentation.
+- Larger partitions reduce overhead from task scheduling and context switching.
+
+So, 128 MB strikes a balance between:
+- Parallelism (not too large to under-utilize executors)
+- Scheduling overhead (not too small to overload the driver)
+
+✅ 5. When to Use repartition()
+Use df.repartition(n) to increase number of partitions, especially when:
+- You're performing expensive transformations (joins, aggregations)
+- You want to write output in multiple files
+- You need more parallelism during processing
+
+Example:
+    df = df.repartition(4)
+    df.rdd.getNumPartitions()  # Now returns 4
+
+📌 Summary Table:
+
+| Metric                            | Value           |
+|----------------------------------|-----------------|
+| File Size                        | 156 KB          |
+| Default Partition Size (Spark)   | 128 MB          |
+| Calculated Number of Partitions  | 1               |
+| Config Controlling It            | spark.sql.files.maxPartitionBytes |
+| Check Number of Partitions       | df.rdd.getNumPartitions() |
+| Override Partition Size          | spark.conf.set(...) |
