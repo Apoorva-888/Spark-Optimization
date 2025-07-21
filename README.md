@@ -10,6 +10,7 @@ This repository showcases how to identify performance bottlenecks and apply opti
 - Dynamic resource allocation
 
 The goal is to build awareness around Spark's execution model and improve job efficiency with hands-on examples.
+
 ---
 ## 🔍 Key Features
 - Compare **Broadcast Hash Join vs Sort Merge Join**
