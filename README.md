@@ -22,7 +22,7 @@ The goal is to build awareness around Spark's execution model and improve job ef
 ---
 ## 📊 Technologies Used
 - Apache Spark (PySpark)
-- Google Colab (optional)
+- Google Colab 
 - Python
 - Parquet/JSON files for test data
 ---
