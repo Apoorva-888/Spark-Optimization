@@ -8,6 +8,7 @@ This repository showcases how to identify performance bottlenecks and apply opti
 - Catalyst physical plans
 - Caching
 - Dynamic resource allocation
+
 The goal is to build awareness around Spark's execution model and improve job efficiency with hands-on examples.
 ---
 ## 🔍 Key Features
